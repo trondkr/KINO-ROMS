@@ -1,0 +1,132 @@
+# Sample .bashrc for SuSE Linux
+# Copyright (c) SuSE GmbH Nuernberg
+
+# There are 3 different types of shells in bash: the login shell, normal shell
+# and interactive shell. Login shells read ~/.profile and interactive shells
+# read ~/.bashrc; in our setup, /etc/profile sources ~/.bashrc - thus all
+# settings made here will also take effect in a login shell.
+#
+# NOTE: It is recommended to make language settings in ~/.profile rather than
+# here, since multilingual X sessions would not work properly if LANG is over-
+# ridden in every subshell.
+
+# This might be helpful for Linux newbies who previously used DOS...
+test -f /etc/profile.dos && . /etc/profile.dos
+
+# Some applications read the EDITOR variable to determine your favourite text
+# editor. So uncomment the line below and enter the editor of your choice :-)
+#export EDITOR=/usr/bin/vim
+#export EDITOR=/usr/bin/mcedit
+
+# For some news readers it makes sense to specify the NEWSSERVER variable here
+#export NEWSSERVER=your.news.server
+
+# If you want to use a Palm device with Linux, uncomment the two lines below.
+# For some (older) Palm Pilots, you might need to set a lower baud rate
+# e.g. 57600 or 38400; lowest is 9600 (very slow!)
+#
+#export PILOTPORT=/dev/pilot
+#export PILOTRATE=115200
+export -f module
+
+test -s ~/.alias && . ~/.alias
+
+export PYTHONPATH="${PYTHONPATH}:/work/shared/imr/KINO/OPENDRIFT"
+
+module unload hdf5
+module load subversion
+module load nco
+module load cdo
+module load ncview
+module load gdal
+module load proj
+
+module swap PrgEnv-cray PrgEnv-pgi
+module load python
+module load git
+module load esmf
+ulimit -s unlimited
+
+# If running interactively, then:
+if [ "$PS1" ]; then
+
+    # enable color support of ls and also add handy aliases
+
+    eval `dircolors`
+    alias ip='ifconfig cipsec0'
+    alias ..='cd ..'
+    alias ls='ls -lrth --color'
+    alias ll='ls -l --color'
+    alias la='ls -la'
+    alias l='ls -l'
+    alias k='ls -ltr'
+    alias dir='ls --color=auto --format=vertical'
+    alias vdir='ls --color=auto --format=long'
+    alias psj='ps -u trondk'
+    alias ddiff='diff --brief'
+    alias gdiff='xxdiff'
+    alias w='cd /work/users/trondk'
+    alias kino='cd /work/users/trondk/KINO'
+    alias ns='cd /work/users/trondk/NS8km'
+    alias ww='cd /work/shared/imr'
+    alias clean='clean.sh'
+    alias mj='showq -u trondk'
+
+    # set a fancy prompt
+    PS1='\u@\h:\w\$ '
+fi
+
+#export PATH=$PATH:.:$HOME/bin
+
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib:/usr/local/lib
+
+#export MATLABPATH=/home/imr/trondk/Tools/Matlab/tools
+#module load cray-hdf5-parallel
+module load cray-netcdf
+
+module load arpack
+export LIB=$ARPACK_DIR/lib:$LIB
+  eval `dircolors`
+    alias ip='ifconfig cipsec0'
+    alias ..='cd ..'
+    alias ls='ls -lrth --color'
+    alias ll='ls -l --color'
+    alias la='ls -la'
+    alias l='ls -l'
+    alias k='ls -ltr'
+    alias dir='ls --color=auto --format=vertical'
+    alias vdir='ls --color=auto --format=long'
+    alias psj='ps -u trondk'
+    alias ddiff='diff --brief'
+    alias gdiff='xxdiff'
+    alias w='cd /work/users/trondk'
+    alias kino='cd /work/users/trondk/KINO'
+    alias ns='cd /work/users/trondk/NS8km'
+    alias ww='cd /work/shared/imr'
+    alias clean='clean.sh'
+    alias mj='showq -u trondk'
+
+    # set a fancy prompt
+    PS1='\u@\h:\w\$ '
+fi
+
+#export PATH=$PATH:.:$HOME/bin
+
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib:/usr/local/lib
+
+#export MATLABPATH=/home/imr/trondk/Tools/Matlab/tools
+#module load cray-hdf5-parallel
+module load cray-netcdf
+
+module load arpack
+export LIB=$ARPACK_DIR/lib:$LIB
+
+#export HDF5_LIBDIR ?=  $HDF5_ROOT/lib
+export LC_CTYPE=C
+#export LS_COLORS='di=34;01:fi=0:ln=96;1:pi=36;1:so=31;1:bd=5:cd=5:or=31:mi=0:ex=35'
+function EXT_COLOR () { echo -ne "\e[38;5;$1m"; }
+function CLOSE_COLOR () { echo -ne '\e[m'; }
+export PS1="\[`EXT_COLOR 187`\]\u@\h\[`CLOSE_COLOR`\]\[`EXT_COLOR 174`\] \w \$ \[`CLOSE_COLOR`\] > "
+export LS_COLORS='di=38;5;108:fi=00:*svn-commit.tmp=31:ln=38;5;116:ex=38;5;186'
+
+export PYROMS_GRIDID_FILE="/work/users/trondk/NS8km/FLUX/gridid.txt"
