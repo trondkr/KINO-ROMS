@@ -49,33 +49,30 @@ class PelagicPlankton(Lagrangian3DArray):
         ('stage_fraction', {'dtype': np.float32,   #KK: Added to track percentage of development time completed
                          'units': '',
                          'default': 0.}),               
-        ('spawning_ground', {'dtype': np.float32, #KK: Added to track origin
-                     'units': '',
-                     'default': 0.}),
         ('length', {'dtype': np.float32,
                          'units': 'mm',
                          'default': 4.0}),
         ('weight', {'dtype': np.float32,
                          'units': 'mg',
                          'default': 0.08}),
-        ('light', {'dtype': np.float32,
-                     'units': 'ugEm2',
-                     'default': 0.}),
         ('Eb', {'dtype': np.float32,
                      'units': 'ugEm2',
                      'default': 0.}),
-        ('growth_rate', {'dtype': np.float32,   
-                         'units': '%',
-                         'default': 0.}),
-        ('ingestion_rate', {'dtype': np.float32,   
-                         'units': '%',
-                         'default': 0.}),
-        ('stomach_fullness', {'dtype': np.float32, 
-                         'units': '%',
-                         'default': 0.}),
-        ('stomach', {'dtype': np.float32, 
-                         'units': '',
-                         'default': 0.})])
+         ('light', {'dtype': np.float32,
+                     'units': 'ugEm2',
+                     'default': 0.}),
+        # ('growth_rate', {'dtype': np.float32,   
+        #                  'units': '%',
+        #                  'default': 0.}),
+         ('ingestion_rate', {'dtype': np.float32,   
+                          'units': '%',
+                          'default': 0.}),
+        # ('stomach_fullness', {'dtype': np.float32, 
+        #                  'units': '%',
+        #                  'default': 0.}),
+         ('stomach', {'dtype': np.float32, 
+                          'units': '',
+                          'default': 0.})])
 
     
 
@@ -333,7 +330,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
         self.elements.age_seconds += self.time_step.total_seconds()
 
         # Turbulent Mixing
-        self.update_terminal_velocity()
+        #self.update_terminal_velocity()
        
         self.calculateMaximumDailyLight()
         self.updatePlanktonDevelopment()

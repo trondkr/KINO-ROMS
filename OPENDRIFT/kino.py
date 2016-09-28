@@ -53,8 +53,8 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     # Normal distribution around 0.5
     mu, sigma = 0.5, 0.1 # mean and standard deviation
     s = np.random.normal(mu, sigma, len(spawningTimes))
-    num=(s*scaleFactor*20).astype(int)
-    print num
+    num=(s*scaleFactor*500).astype(int)
+ 
     print "SPAWNING: Simulated spawning will release %s eggs"%(np.sum(num))
 
  #   for day,seed in zip(spawningTimes,num):
@@ -118,15 +118,16 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,a
     o.add_reader([reader_basemap])
        
     reader_roms = reader_ROMS_native.Reader(romsDirectory+pattern)
-    reader_roms.interpolation = 'linearND'
+    reader_roms.interpolation = 'nearest' #linearND
     o.add_reader(reader_roms)
 
     num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime)
 
     #Adjusting some configuration
-    o.config['processes']['turbulentmixing'] = False
+    o.config['processes']['turbulentmixing'] = True
     o.config['turbulentmixing']['diffusivitymodel'] = 'windspeed_Sundby1983'
-    o.config['turbulentmixing']['timestep'] = 20. # seconds
+    o.config['turbulentmixing']['timestep'] = 900. # seconds
+    o.config['verticalmixing']['verticalresolution'] = 2 # default is 1 meter, but since we have longer timestep we justify it
     o.config['biology']['constantIngestion'] = 0.3
     o.config['biology']['activeMetabOn'] = 1
     o.config['biology']['cod'] = True
@@ -137,7 +138,7 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,a
         if nums <= 0:
             continue
         print "Running i=%s num=%s"%(i,nums)
-        o.seed_from_shapefile(shapefile, nums, layername='Torsk',featurenum=[1], z=-10, time=spawningTimes[i])
+        o.seed_from_shapefile(shapefile, nums, layername='Torsk',featurenum=[polygonIndex], z=-10, time=spawningTimes[i])
 
 
     print o
@@ -147,8 +148,8 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,a
     #########################
     # Running model
     #########################
-    o.run(end_time=endTime, time_step=timedelta(hours=1),
-          time_step_output=timedelta(hours=1), outfile=outputFilename,
+    o.run(export_step_interval=50,end_time=endTime, time_step=timedelta(hours=3),
+          outfile=outputFilename,
           export_variables=['lon', 'lat', 'z','temp','length','weight'])
 
     if not hexagon:
@@ -206,8 +207,8 @@ s = ogr.Open(shapefile)
 
 for layer in s:
     # Torsk: MainArea=2, peak north=0, peak south=1
-    polygonIndex=0
-    for polygonIndex in [0,1,2]:
+  
+    for polygonIndex in [1,2,3]:
         outputFilename, animationFilename, plotFilename = createOutputFilenames(startTime,endTime,polygonIndex,shapefile)
 
         print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
