@@ -61,15 +61,15 @@ class PelagicPlankton(Lagrangian3DArray):
          ('light', {'dtype': np.float32,
                      'units': 'ugEm2',
                      'default': 0.}),
-        # ('growth_rate', {'dtype': np.float32,   
-        #                  'units': '%',
-        #                  'default': 0.}),
+         ('growth_rate', {'dtype': np.float32,   
+                          'units': '%',
+                          'default': 0.}),
          ('ingestion_rate', {'dtype': np.float32,   
                           'units': '%',
                           'default': 0.}),
-        # ('stomach_fullness', {'dtype': np.float32, 
-        #                  'units': '%',
-        #                  'default': 0.}),
+         ('stomach_fullness', {'dtype': np.float32, 
+                          'units': '%',
+                          'default': 0.}),
          ('stomach', {'dtype': np.float32, 
                           'units': '',
                           'default': 0.})])
@@ -90,7 +90,7 @@ class PelagicPlankton(Lagrangian3DArray):
         sunHeight=np.zeros((num)); surfaceLight=np.zeros((num))
 
         """Calculate the maximum and average light values for a given geographic position
-        for a given time of year. Notcie we use radfl0 instead of maximum values maxLight
+        for a given time of year. Notice we use radfl0 instead of maximum values maxLight
         in light caclualtions. Seemed better to use average values than extreme values.
         NOTE: Convert from W/m2 to umol/m2/s-1"""
         radfl0,maxLight,cawdir = calclight.calclight.qsw(radfl0,maxLight,cawdir,clouds,self.elements.lat*np.pi/180.0,dayOfYear,daysInYear,num)
@@ -110,7 +110,7 @@ class PelagicPlankton(Lagrangian3DArray):
         self.elements.hatched[self.elements.stage_fraction>=1] = 1 #Eggs with total development time completed are hatched (1)
 
     def updateVertialPosition(self,length,lastEb,currentEb,currentDepth,dt):
-
+        # Update the vertical position of the current larva
         swimSpeed=0.261*(length**(1.552*length**(0.920-1.0)))-(5.289/length)
         fractionOfTimestepSwimming=0.25 # guessed value
         maxHourlyMove=swimSpeed*fractionOfTimestepSwimming*dt
@@ -120,7 +120,7 @@ class PelagicPlankton(Lagrangian3DArray):
           depth = min(0.0,currentDepth + maxHourlyMove)
         else:
           depth = min(0,currentDepth - maxHourlyMove)
-        
+        #print "current depth %s new depth %s light %s"%(currentDepth,depth,currentEb)
         #print "maximum mm to move %s new depth %s old depth %s"%(maxHourlyMove,depth,currentDepth)
         return depth
 
@@ -132,7 +132,7 @@ class PelagicPlankton(Lagrangian3DArray):
         haddock = self.config['biology']['haddock']
         
         self.updateEggDevelopment()
-        #self.elements.hatched[:]=1.0
+        self.elements.hatched[:]=1.0
 
         lastEb=self.elements.Eb
         self.elements.Eb=self.elements.light*np.exp(attCoeff*(self.elements.z))
@@ -204,7 +204,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
                           'surface_downward_y_stress',
                           'turbulent_kinetic_energy',
                           'turbulent_generic_length_scale',
-                          #'upward_sea_water_velocity'
+                          'upward_sea_water_velocity'
                           ]
 
     # Vertical profiles of the following parameters will be available in
@@ -217,7 +217,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
     required_profiles = ['sea_water_temperature',
                          'sea_water_salinity',
                          'ocean_vertical_diffusivity']
-    required_profiles_z_range = [-120, 0]  # The depth range (in m) which
+    required_profiles_z_range = [-90, 0]  # The depth range (in m) which
                                           # profiles shall cover
 
     fallback_values = {'x_sea_water_velocity': 0,
@@ -233,8 +233,8 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
                        'surface_downward_x_stress': 0,
                        'surface_downward_y_stress': 0,
                        'turbulent_kinetic_energy': 0,
-                       'turbulent_generic_length_scale': 0
-                       #'upward_sea_water_velocity': 0
+                       'turbulent_generic_length_scale': 0,
+                       'upward_sea_water_velocity': 0
                        }
 
     # Default colors for plotting
@@ -330,25 +330,17 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
         self.elements.age_seconds += self.time_step.total_seconds()
 
         # Turbulent Mixing
-        #self.update_terminal_velocity()
+        self.update_terminal_velocity()
        
         self.calculateMaximumDailyLight()
         self.updatePlanktonDevelopment()
 
         # Horizontal advection
         self.advect_ocean_current()
-
        
         # Vertical advection
         if self.config['processes']['verticaladvection'] is True:
             self.vertical_advection()
-
-
-        # Biological behaviour
-        # Nonsense example, illustrating how to add behaviour:
-        # Lifting elements 1 m if water temperature is colder than 7 deg
-        #self.elements.z[self.environment.sea_water_temperature<7] += 1
-        #self.elements.z[self.elements.z>0] = 0
 
         # Deactivate elements hitting land
         self.deactivate_stranded_elements()

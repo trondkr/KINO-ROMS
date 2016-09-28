@@ -45,7 +45,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     print "=>SIMULATION: Drift simulation will run for %s simulation hours" %(timeStepsSimulation)
     print "=>SPAWNING: Simulated spawning will run for %s simulation hours\n initiated on %s and ending on %s"%(timeStepsSpawning,startSpawningTime,endSpawningTime)
 
-    interval = timedelta(hours=24)
+    interval = timedelta(hours=12)
 
     spawningTimes = [startSpawningTime + interval*n for n in range(timeStepsSpawning)]
 
@@ -68,7 +68,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
 
     return num, spawningTimes
 
-def createOutputFilenames(startTime,endTime,polygonIndex,shapefile):
+def createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile):
     startDate=''
     if startTime.day<10:
         startDate+='0%s'%(startTime.day)
@@ -98,16 +98,18 @@ def createOutputFilenames(startTime,endTime,polygonIndex,shapefile):
     # Special file naming for KINO. Each layer has name 'species.shp' and we want teh species name only.
     head,tail=os.path.split(shapefile)
     species=os.path.splitext(tail)
-    outputFilename='figures/%s_polygon_%s_kino_opendrift_%s_to_%s.nc'%(species[0],polygonIndex+1,startDate,endDate)
-    animationFilename='figures/%s_polygon_%s_kino_animation_%s_to_%s.mp4'%(species[0],polygonIndex+1,startDate,endDate)
-    plotFilename='figures/%s_polygon_%s_kino_plot_%s_to_%s.png'%(species[0],polygonIndex+1,startDate,endDate)
+    outputFilename='results/%s_polygon_%s_kino_opendrift_%s_to_%s.nc'%(specie,polygonIndex,startDate,endDate)
+    animationFilename='figures/%s_polygon_%s_kino_animation_%s_to_%s.mp4'%(specie,polygonIndex,startDate,endDate)
+    plotFilename='figures/%s_polygon_%s_kino_plot_%s_to_%s.png'%(specie,polygonIndex,startDate,endDate)
 
     if not os.path.exists('figures'):
         os.makedirs('figures')
+    if not os.path.exists('results'):
+        os.makedirs('results')
     return outputFilename, animationFilename, plotFilename
 
    
-def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,animationFilename,plotFilename):
+def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename):
 
     # Setup a new simulation
     o = PelagicPlanktonDrift(loglevel=0)  # Set loglevel to 0 for debug information
@@ -123,40 +125,45 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,a
 
     num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime)
 
-    #Adjusting some configuration
+    #######################
+    #Adjusting configuration
+    #######################
     o.config['processes']['turbulentmixing'] = True
     o.config['turbulentmixing']['diffusivitymodel'] = 'windspeed_Sundby1983'
-    o.config['turbulentmixing']['timestep'] = 900. # seconds
-    o.config['verticalmixing']['verticalresolution'] = 2 # default is 1 meter, but since we have longer timestep we justify it
+    o.config['turbulentmixing']['timestep'] = 900 # seconds
+    o.config['turbulentmixing']['verticalresolution'] = 2 # default is 1 meter, but since we have longer timestep we justify it
+    o.config['processes']['verticaladvection'] = True
+    
+    #######################
+    # IBM configuration   
+    #######################
     o.config['biology']['constantIngestion'] = 0.3
     o.config['biology']['activeMetabOn'] = 1
     o.config['biology']['cod'] = True
     o.config['biology']['haddock'] = False
     o.config['biology']['attenuationCoefficient']=0.18
     
+    #######################
+    # Seed particles
+    #######################
     for i, nums in enumerate(num):
         if nums <= 0:
             continue
         print "Running i=%s num=%s"%(i,nums)
         o.seed_from_shapefile(shapefile, nums, layername='Torsk',featurenum=[polygonIndex], z=-10, time=spawningTimes[i])
 
-
-    print o
-    print "TORSK", o.elements_scheduled
+    print "Elements scheduled for %s : %s"%(specie,o.elements_scheduled)
     #reader_basemap.plot() 
 
     #########################
-    # Running model
+    # Run the model
     #########################
-    o.run(export_step_interval=50,end_time=endTime, time_step=timedelta(hours=3),
+    o.run(end_time=endTime, time_step=timedelta(hours=3),
           outfile=outputFilename,
           export_variables=['lon', 'lat', 'z','temp','length','weight'])
 
     if not hexagon:
-      
-      #  o.plot(background=['x_sea_water_velocity', 'y_sea_water_velocity'],filename=plotFilename)
         o.plot(linecolor='z',filename=plotFilename)
-
         o.animation(filename=animationFilename)
 
 #########################
@@ -164,20 +171,21 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,a
 #########################
 
 hexagon=True
-startTime=datetime(2012,2,1,12,3,50)
+startTime=datetime(2012,2,15,12,3,50)
 endTime=datetime(2012,5,30,3,3,50)
 startSpawningTime=datetime(2012,2,15,12,3,50)
-endSpawningTime=datetime(2012,4,30,3,3,50)
+endSpawningTime=datetime(2012,4,15,3,3,50)
 
 scaleFactor=1 # if scaleFactor=1, total particles is 1000, scaleFactor=2, total particles = 2000
 hoursBetweenTimestepInROMSFiles=3
+species=['Torsk'] #['Sei','Oyepaal','Hyse','Torsk']
 
 if not hexagon: 
     romsDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
-    startTime=datetime(2010,8,3,3,3,50)
-    endTime=datetime(2010,8,5,9,3,50)
-    startSpawningTime=datetime(2010,8,3,3,3,50)
-    endSpawningTime=datetime(2010,8,5,9,3,50)
+    startTime=datetime(2010,8,3,19,3,50)
+    endTime=datetime(2010,8,5,17,3,50)
+    startSpawningTime=datetime(2010,8,3,19,3,50)
+    endSpawningTime=datetime(2010,8,4,19,3,50)
 
 if hexagon:
     romsDirectory='/work/users/trondk/KINO/FORWARD/Run/RESULTS/2012/'
@@ -189,29 +197,27 @@ else:
     pattern='kino_1600m_*[\U23011-\U23375]*.nc' 
     pattern='kino_1600m_*.nc' 
 
-if not hexagon:
-    shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/Torsk.shp'
-if hexagon:
-    shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/Torsk.shp'
-#
-
-
 # Landmask (Basemap)
 reader_basemap = reader_basemap_landmask.Reader(
-                    llcrnrlon=-4.0, llcrnrlat=50.5,
-                    urcrnrlon=11.0, urcrnrlat=67.0,
-                    resolution='i', projection='merc')
+                        llcrnrlon=-8.0, llcrnrlat=50.5,
+                        urcrnrlon=30.0, urcrnrlat=75.0,
+                        resolution='i', projection='merc')
 
+# Loop over all species
+for specie in species:
+    if not hexagon:
+        shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/'+str(specie)+'.shp'
+    if hexagon:
+        shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/'+str(specie)+'.shp'
+    print "Using shapefile %s"%(shapefile)
+    s = ogr.Open(shapefile)
 
-s = ogr.Open(shapefile)
+    for layer in s:
+        
+        for polygonIndex in [1,2,3]:
+            outputFilename, animationFilename, plotFilename = createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile)
 
-for layer in s:
-    # Torsk: MainArea=2, peak north=0, peak south=1
-  
-    for polygonIndex in [1,2,3]:
-        outputFilename, animationFilename, plotFilename = createOutputFilenames(startTime,endTime,polygonIndex,shapefile)
+            print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
 
-        print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
-
-        createAndRunSimulation(endTime,layer,polygonIndex,shapefile,outputFilename,animationFilename,plotFilename)
+            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename)
 
