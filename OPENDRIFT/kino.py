@@ -19,7 +19,7 @@ except Exception as e:
     print e
     raise ValueError('OGR library is needed to read shapefiles.')
 
-def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime):
+def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime,releaseParticles):
     ##################################################
     # Create seed variation as function of day
     ##################################################
@@ -53,7 +53,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     # Normal distribution around 0.5
     mu, sigma = 0.5, 0.1 # mean and standard deviation
     s = np.random.normal(mu, sigma, len(spawningTimes))
-    num=(s*scaleFactor*10).astype(int)
+    num=(s*releaseParticles).astype(int)
  
     print "SPAWNING: Simulated spawning will release %s eggs"%(np.sum(num))
 
@@ -109,7 +109,7 @@ def createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile):
     return outputFilename, animationFilename, plotFilename
 
    
-def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename):
+def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles):
 
     # Setup a new simulation
     o = PelagicPlanktonDrift(loglevel=0)  # Set loglevel to 0 for debug information
@@ -123,7 +123,7 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     reader_roms.interpolation = 'nearest' #linearND
     o.add_reader(reader_roms)
 
-    num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime)
+    num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime,releaseParticles)
 
     #######################
     #Adjusting configuration
@@ -161,7 +161,7 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     #########################
     o.run(end_time=endTime, time_step=timedelta(hours=3),
           outfile=outputFilename,
-          export_variables=['lon', 'lat', 'z','temp','length','weight'])
+          export_variables=['lon', 'lat', 'z','temp','length','weight','survival'])
 
     if not hexagon:
         o.plot(linecolor='z',filename=plotFilename)
@@ -176,8 +176,8 @@ startTime=datetime(2012,2,15,12,3,50)
 endTime=datetime(2012,5,30,3,3,50)
 startSpawningTime=datetime(2012,2,15,12,3,50)
 endSpawningTime=datetime(2012,4,15,3,3,50)
+releaseParticles=100 # Per timestep multiplied by gaussian bell (so maximum is releaseParticles and minimum is close to zero)
 
-scaleFactor=1 # if scaleFactor=1, total particles is 1000, scaleFactor=2, total particles = 2000
 hoursBetweenTimestepInROMSFiles=3
 species=['Torsk'] #['Sei','Oyepaal','Hyse','Torsk']
 
@@ -220,5 +220,5 @@ for specie in species:
 
             print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
 
-            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename)
+            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles)
 

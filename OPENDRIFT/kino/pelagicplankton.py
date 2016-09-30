@@ -72,7 +72,10 @@ class PelagicPlankton(Lagrangian3DArray):
                           'default': 0.}),
          ('stomach', {'dtype': np.float32, 
                           'units': '',
-                          'default': 0.})])
+                          'default': 0.}),
+         ('survival', {'dtype': np.float32, 
+                          'units': '',
+                          'default': 1.})])
 
     
 
@@ -100,7 +103,13 @@ class PelagicPlankton(Lagrangian3DArray):
           sunHeight, surfaceLight = calclight.calclight.surlig(hourOfDay,float(maxLight[ind]),dayOfYear,float(self.elements.lat[ind]),sunHeight,surfaceLight)
           self.elements.light[ind]=surfaceLight          
 
-   
+    def updateSurvival(self):
+        # Update the size dependent mortality
+        aPred = 1.78e-5
+        bPred = -1.3 
+        mortality = aPred*(self.elements.length**bPred)*(self.time_step.total_seconds()/3600.)
+        self.elements.survival = self.elements.survival*(np.exp(-mortality))
+       
     def updateEggDevelopment(self):
         # Update percentage of egg stage completed
         amb_duration = np.exp(3.65 - 0.145*self.environment.sea_water_temperature) #Total egg development time (days) according to ambient temperature (Ellertsen et al. 1988)
@@ -268,7 +277,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
         super(PelagicPlanktonDrift, self).__init__(*args, **kwargs)
 
 
-    def update_terminal_velocity(self):
+    def update_terminal_velocity(self, Tprofiles=None, Sprofiles=None, z_index=None):
         """Calculate terminal velocity for Pelagic Egg
 
         according to
@@ -287,8 +296,26 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
         eggsalinity = self.elements.neutral_buoyancy_salinity
         # 31.25 for NEA Cod
 
-        T0 = self.environment.sea_water_temperature
-        S0 = self.environment.sea_water_salinity
+
+        # prepare interpolation of temp, salt
+        if not (Tprofiles==None and Sprofiles==None):
+            if z_index==None:
+                z_i = range(Tprofiles.shape[0]) # evtl. move out of loop
+                z_index = interp1d(-self.environment_profiles['z'],z_i,bounds_error=False) # evtl. move out of loop
+            zi = z_index(-self.elements.z)
+            upper = np.maximum(np.floor(zi).astype(np.int), 0)
+            lower = np.minimum(upper+1, Tprofiles.shape[0]-1)
+            weight_upper = 1 - (zi - upper)
+
+        # do interpolation of temp, salt if profiles were passed into this function, if not, use reader by calling self.environment
+        if Tprofiles==None:
+            T0 = self.environment.sea_water_temperature
+        else:
+            T0 = Tprofiles[upper, range(Tprofiles.shape[1])] * weight_upper + Tprofiles[lower, range(Tprofiles.shape[1])] * (1-weight_upper) 
+        if Sprofiles==None:
+            S0 = self.environment.sea_water_salinity
+        else:
+            S0 = Sprofiles[upper, range(Sprofiles.shape[1])] * weight_upper + Sprofiles[lower, range(Sprofiles.shape[1])] * (1-weight_upper) 
 
         # The density difference bettwen a pelagic egg and the ambient water
         # is regulated by their salinity difference through the
@@ -334,6 +361,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
        
         self.calculateMaximumDailyLight()
         self.updatePlanktonDevelopment()
+        self.updateSurvival()
 
         # Horizontal advection
         self.advect_ocean_current()
