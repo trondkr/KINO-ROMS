@@ -45,7 +45,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     print "=>SIMULATION: Drift simulation will run for %s simulation hours" %(timeStepsSimulation)
     print "=>SPAWNING: Simulated spawning will run for %s simulation hours\n initiated on %s and ending on %s"%(timeStepsSpawning,startSpawningTime,endSpawningTime)
 
-    interval = timedelta(hours=12)
+    interval = timedelta(hours=24)
 
     spawningTimes = [startSpawningTime + interval*n for n in range(timeStepsSpawning)]
 
@@ -53,7 +53,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     # Normal distribution around 0.5
     mu, sigma = 0.5, 0.1 # mean and standard deviation
     s = np.random.normal(mu, sigma, len(spawningTimes))
-    num=(s*scaleFactor*500).astype(int)
+    num=(s*scaleFactor*10).astype(int)
  
     print "SPAWNING: Simulated spawning will release %s eggs"%(np.sum(num))
 
@@ -130,10 +130,11 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     #######################
     o.config['processes']['turbulentmixing'] = True
     o.config['turbulentmixing']['diffusivitymodel'] = 'windspeed_Sundby1983'
-    o.config['turbulentmixing']['timestep'] = 900 # seconds
+    o.config['turbulentmixing']['timestep'] = 100 # seconds
     o.config['turbulentmixing']['verticalresolution'] = 2 # default is 1 meter, but since we have longer timestep we justify it
     o.config['processes']['verticaladvection'] = True
-    
+    o.config['turbulentmixing']['TSprofiles']=True
+
     #######################
     # IBM configuration   
     #######################
