@@ -11,6 +11,7 @@ from pylab import *
 import datetime
 from pprint import pprint
 from netCDF4 import Dataset, datetime, date2num,num2date
+from scipy.ndimage.filters import gaussian_filter
 
 __author__   = 'Trond Kristiansen'
 __email__    = 'me (at) trondkristiansen.com'
@@ -33,8 +34,8 @@ def createBins():
 
 	print 'func: createBins() => Creating bins for averaging'
 	xmin=-4.0; xmax=13.0
-	ymin=56.0; ymax=62.0
-	requiredResolution = 20 # km between each binned box
+	ymin=50.0; ymax=66.0
+	requiredResolution = 10 # km between each binned box
 
 	deg2rad=np.pi/180.
 	R = 6371  # radius of the earth in km
@@ -62,7 +63,7 @@ def createBins():
 
 	return xi,yi
 
-def calculateAreaAverages(xi,yi,cdf):
+def calculateAreaAverages(xi,yi,cdf,first):
 
 	print 'func: calculateAreaAverages() => Calculating averages within bins'
 	print '=> binned domain (%2.1f,%2.1f) to (%2.1f,%2.1f)'%(np.min(xi),np.min(yi),np.max(xi),np.max(yi))
@@ -75,29 +76,65 @@ def calculateAreaAverages(xi,yi,cdf):
 	for tindex, t in enumerate(timesteps): 
 
  		currentDate = num2date(t, units=timeunits, calendar="gregorian")
-		print '=> Current timestep %s'%(currentDate)
-
 		Xpos = cdf.variables['lon'][:,tindex]
 		Ypos = cdf.variables['lat'][:,tindex]
-		
+			
 		H, xedges, yedges = np.histogram2d(Xpos, Ypos, bins=(xi, yi), normed=False)
-		print tindex
-		if (tindex==0):
-			fig = plt.figure()
-			ax = fig.add_subplot(111)
-			cont=ax.pcolor(np.fliplr(np.rot90(H,3)))
-		else:
-			cont.set_data(np.fliplr(np.rot90(H,3)))
-			fig.canvas.draw()
 
-		plt.show()
+		if (tindex==0 and first is True):
+			monthlyFrequency=np.zeros((12,np.shape(H)[0],np.shape(H)[1]), dtype=float32)
+			print np.shape(monthlyFrequency)
+			
+	#	if currentDate.month==2:
+		print "=> Adding data to month: %s (%s)"%(currentDate.month,currentDate)
+		monthlyFrequency[currentDate.month,:,:]=monthlyFrequency[currentDate.month,:,:] + H
+
+	# Create log values and levels for frequencyplot
+	monthlyFrequency=ma.log(monthlyFrequency)
+	levels = np.arange(monthlyFrequency.min(),monthlyFrequency.max(),(monthlyFrequency.max()- monthlyFrequency.min())/10)
+		
+	sigma = 0.2 # this depends on how noisy your data is, play with it!
+
+	filtereddata = gaussian_filter(monthlyFrequency, sigma)
+
+	# Create one plot per month
+	for month in [1,2,3,4]:
+	
+		plt.clf()
+		plt.figure(figsize=(10,10), frameon=False)
+
+		mymap = Basemap(llcrnrlon=-3.0,
+	                  llcrnrlat=53.0,
+	                  urcrnrlon=13.5,
+	                  urcrnrlat=63.0,
+	                  resolution='i',projection='tmerc',lon_0=5,lat_0=10,area_thresh=50.)
+
+		xii,yii=np.meshgrid(xi[:-1],yi[:-1])
+		x, y = mymap(xii,yii)
+		
+		CS1 = mymap.contourf(x,y,np.fliplr(np.rot90(np.squeeze(filtereddata[month,:,:]),3)),levels,cmap=cm.get_cmap('Spectral_r',len(levels)-1), extend='both',alpha=1.0)
+		plt.colorbar(CS1,orientation='vertical',extend='both', shrink=0.5)
+
+		mymap.drawcoastlines()
+		mymap.fillcontinents(color='grey',zorder=2)
+		mymap.drawcountries()
+		mymap.drawmapboundary()
+		plt.title('Month %s'%(month))
+		plotfile='/Users/trondkr/Projects/KINO/opendrift/frequencyFigures/frequency_'+str(month)+'.png'
+		print "=> Creating plot %s"%(plotfile)
+		#plt.show()
+		plt.savefig(plotfile,dpi=300)
+
 def main():
 
-	infile='Torsk_polygon_2_kino_opendrift_01012012_to_30062012.nc'
+	first=True
+	infile='results/Torsk_polygon_1_kino_opendrift_15022012_to_30052012.nc'
+
+	xi,yi = createBins()
+
 	if os.path.exists(infile):
 		cdf = Dataset(infile)
-		xi,yi = createBins()
-		calculateAreaAverages(xi,yi,cdf)
+		first = calculateAreaAverages(xi,yi,cdf,first)
 
 	else:
 		print "Input file %s could not be opened"%(infile)

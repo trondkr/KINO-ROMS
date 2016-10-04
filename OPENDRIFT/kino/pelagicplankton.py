@@ -141,7 +141,7 @@ class PelagicPlankton(Lagrangian3DArray):
         haddock = self.config['biology']['haddock']
         
         self.updateEggDevelopment()
-        self.elements.hatched[:]=1.0
+        #self.elements.hatched[:]=1.0
 
         lastEb=self.elements.Eb
         self.elements.Eb=self.elements.light*np.exp(attCoeff*(self.elements.z))
