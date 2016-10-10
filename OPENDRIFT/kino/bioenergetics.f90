@@ -24,18 +24,18 @@ Contains
 
   Subroutine growth (larvamm,larvawgt,stomach,ingestionrate,&
     &growthrateInPercent,stomachFullness,haddock,&
-    &activemetabOn,constantIngestion,swimdistance,Eb,dt,temp)
+    &activemetabOn,constantIngestion,fractionOfTimestepSwimming,Eb,dt,temp)
 
     real(kind=8) meta, larvamm, temp, larvawgt,larvawgt_previous
     real(kind=8) maxgrowthrateInPercent,maxgrowthrateInMG,assi,stomachFullness
     real(kind=8) constantIngestion,activityCost,growthrateInPercent,swimspeed
     real(kind=8) Eb,maxg,ingestionrate,stomach,stomach_previous,larvamm_previous
-    real(kind=8) swimdistance ! swimdistance is the fraction of &
+    real(kind=8) fractionOfTimestepSwimming ! swimdistance is the fraction of &
     ! maximum distance allowed to swim in one timestep. Scales cost of swimming with no swimming
 
     Integer dt,activemetabOn,haddock
 
-    double precision :: ingestion
+    double precision :: ingestion,swimdistance
 
 !f2py intent(in,out,overwrite) larvamm,larvawgt,stomach,ingestionrate,growthrateInPercent,stomachFullness
 !f2py intent(in) haddock,activemetabOn,constantIngestion,swimdistance,Eb,deltaH,dt,temp
@@ -125,8 +125,8 @@ Contains
     ! Calculate how far the larva can swim in one timestep
     swimspeed=0.261*(larvamm**(1.552*larvamm**(0.920-1.0)))-(5.289/larvamm)
     ! Distance in one time step divided by 2 to account for other activities
-    swimdistance=((swimspeed*(dt))/2.0)
-
+    swimdistance=(swimspeed*dt)*fractionOfTimestepSwimming
+       
     !Calculate the cost of being active. The more you swim the more you use energy in raltive ratio to
     !routine metabolims. Trond Kristiansen, 23.03.2010"""
     activityCost= (swimdistance*meta*costRateOfMetabolism)

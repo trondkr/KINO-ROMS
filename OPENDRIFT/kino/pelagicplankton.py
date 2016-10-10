@@ -100,6 +100,7 @@ class PelagicPlankton(Lagrangian3DArray):
         maxLight = radfl0/0.217
         """Calculate the daily variation of irradiance based on hour of day - store in self.elements.light"""
         for ind in xrange(len(self.elements.lat)):
+        
           sunHeight, surfaceLight = calclight.calclight.surlig(hourOfDay,float(maxLight[ind]),dayOfYear,float(self.elements.lat[ind]),sunHeight,surfaceLight)
           self.elements.light[ind]=surfaceLight          
 
@@ -118,42 +119,43 @@ class PelagicPlankton(Lagrangian3DArray):
         self.elements.stage_fraction += amb_fraction #Add fraction completed during present timestep to cumulative fraction completed
         self.elements.hatched[self.elements.stage_fraction>=1] = 1 #Eggs with total development time completed are hatched (1)
 
-    def updateVertialPosition(self,length,lastEb,currentEb,currentDepth,dt):
+    def updateVertialPosition(self,length,oldLight,currentLight,currentDepth,dt):
         # Update the vertical position of the current larva
         swimSpeed=0.261*(length**(1.552*length**(0.920-1.0)))-(5.289/length)
         fractionOfTimestepSwimming=0.25 # guessed value
         maxHourlyMove=swimSpeed*fractionOfTimestepSwimming*dt
         maxHourlyMove =  round(maxHourlyMove/1000.,1) # depth values are negative
-
-        if (lastEb > currentEb):
-          depth = min(0.0,currentDepth + maxHourlyMove)
+       
+        if (oldLight <= currentLight):
+          depth = min(0.0,currentDepth - maxHourlyMove)
         else:
-          depth = min(0,currentDepth - maxHourlyMove)
-        #print "current depth %s new depth %s light %s"%(currentDepth,depth,currentEb)
+          depth = min(0,currentDepth + maxHourlyMove)
+        #print "current depth %s new depth %s light %s lastLight %s"%(currentDepth,depth,currentLight,oldLight)
         #print "maximum mm to move %s new depth %s old depth %s"%(maxHourlyMove,depth,currentDepth)
         return depth
 
     def updatePlanktonDevelopment(self):
    
-        constantIngestion=self.config['biology']['constantIngestion']
-        activemetabOn=self.config['biology']['activemetabOn']
-        attCoeff=self.config['biology']['attenuationCoefficient']
+        constantIngestion = self.config['biology']['constantIngestion']
+        activemetabOn = self.config['biology']['activemetabOn']
+        attCoeff = self.config['biology']['attenuationCoefficient']
         haddock = self.config['biology']['haddock']
-        
+        fractionOfTimestepSwimming = self.config['biology']['fractionOfTimestepSwimming']
+
         self.updateEggDevelopment()
         #self.elements.hatched[:]=1.0
+        
+        # Save the light from previous timestep to use for vertical behavior
+        lastLight=np.zeros(np.shape(self.elements.light))
+        lastLight[:]=self.elements.light[:]
 
-        lastEb=self.elements.Eb
+        self.calculateMaximumDailyLight()
+
         self.elements.Eb=self.elements.light*np.exp(attCoeff*(self.elements.z))
      
-
-        swimdistance=1.0
         dt=self.time_step.total_seconds()
 
         for ind in xrange(len(self.elements.lat)):
-     #     print type(self.environment.sea_water_temperature),np.shape(self.environment.sea_water_temperature)
-     #     print "self.environment.sea_water_temperature[ind]",self.environment.sea_water_temperature[ind],ind
-        
           if (self.elements.hatched[ind]>=1):
           # Calculate biological properties of the individual larva                                 
             larvamm,larvawgt,stomach,ingrate,growthrate,sfullness=bioenergetics.bioenergetics.growth(self.elements.length[ind],
@@ -165,7 +167,7 @@ class PelagicPlankton(Lagrangian3DArray):
               haddock,
               activemetabOn,
               constantIngestion,
-              swimdistance,
+              fractionOfTimestepSwimming,
               self.elements.Eb[ind],
               dt,
               self.environment.sea_water_temperature[ind])
@@ -179,8 +181,8 @@ class PelagicPlankton(Lagrangian3DArray):
             self.elements.stomach_fullness[ind]=sfullness
 
             self.elements.z[ind] = self.updateVertialPosition(self.elements.length[ind],
-              lastEb[ind],
-              self.elements.Eb[ind],
+              lastLight[ind],
+              self.elements.light[ind],
               self.elements.z[ind],
               dt)
          
@@ -358,8 +360,7 @@ class PelagicPlanktonDrift(OpenDrift3DSimulation,PelagicPlankton):
 
         # Turbulent Mixing
         self.update_terminal_velocity()
-       
-        self.calculateMaximumDailyLight()
+        
         self.updatePlanktonDevelopment()
         self.updateSurvival()
 

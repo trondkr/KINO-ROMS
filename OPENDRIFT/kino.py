@@ -25,48 +25,41 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     ##################################################
 
     # Make datetime array from start to end at 3 hour interval
-    interval = timedelta(hours=hoursBetweenTimestepInROMSFiles)
+    #interval = timedelta(hours=hoursBetweenTimestepInROMSFiles)
     difference=endTime-startTime
     hoursOfSimulation=divmod(difference.total_seconds(), 3600)
      
     difference=endSpawningTime-startSpawningTime
     hoursOfSpawning=divmod(difference.total_seconds(), 3600)
      
-    startSimulationJD=startTime.timetuple().tm_yday
-    endSimulationJD=endTime.timetuple().tm_yday
+    #startSimulationJD=startTime.timetuple().tm_yday
+    #endSimulationJD=endTime.timetuple().tm_yday
     timeStepsSimulation=int(int(hoursOfSimulation[0])/hoursBetweenTimestepInROMSFiles)
-
-    startSpawningJD=startSpawningTime.timetuple().tm_yday
-    endSpawningJD=endSpawningTime.timetuple().tm_yday
-    timeStepsSpawning=int(int(hoursOfSpawning[0])/hoursBetweenTimestepInROMSFiles)
-
-
+	
+    #startSpawningJD=startSpawningTime.timetuple().tm_yday
+    #endSpawningJD=endSpawningTime.timetuple().tm_yday
+    #timeStepsSpawning=int(int(hoursOfSpawning[0])/hoursBetweenTimestepInROMSFiles)
+	
     print "\nKINO TIME EVOLUTION:"
     print "=>SIMULATION: Drift simulation will run for %s simulation hours" %(timeStepsSimulation)
-    print "=>SPAWNING: Simulated spawning will run for %s simulation hours\n initiated on %s and ending on %s"%(timeStepsSpawning,startSpawningTime,endSpawningTime)
+    print "=>SPAWNING: Simulated spawning will run for %s simulation hours\n initiated on %s and ending on %s"%(timeStepsSimulation,startSpawningTime,endSpawningTime)
 
     interval = timedelta(hours=24)
-
-    spawningTimes = [startSpawningTime + interval*n for n in range(timeStepsSpawning)]
-
+    hoursPerSpawning=divmod(interval.total_seconds(), 3600) #hours per spawning event
+    timeStepsSpawning=int(int(hoursOfSpawning[0])/int(hoursPerSpawning[0])) #number of spawning timesteps
+    spawningTimes = [startSpawningTime + interval*n for n in range(timeStepsSpawning)] #times of spawning
 
     # Normal distribution around 0.5
     mu, sigma = 0.5, 0.1 # mean and standard deviation
     s = np.random.normal(mu, sigma, len(spawningTimes))
     num=(s*releaseParticles).astype(int)
- 
+    num=np.sort(num) #sort particles in increasing order 
+    num=np.concatenate((num[len(num)%2::2],num[::-2]),axis=0) #release the highest number of particles at the midpoint of the spawning period
+
     print "SPAWNING: Simulated spawning will release %s eggs"%(np.sum(num))
 
- #   for day,seed in zip(spawningTimes,num):
- #       print "=> day: %s seed: %s"%(day,seed)
-
-    #count, bins, ignored = plt.hist(num, 30, normed=True)
-    #plt.plot(bins, 1/(sigma * np.sqrt(2 * np.pi)) *
-    #               np.exp( - (bins - mu)**2 / (2 * sigma**2) ),
-    #         linewidth=2, color='r')
-    #plt.show()
-
     return num, spawningTimes
+
 
 def createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile):
     startDate=''
@@ -109,7 +102,7 @@ def createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile):
     return outputFilename, animationFilename, plotFilename
 
    
-def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles):
+def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles,kinoDirectory,pattern_kino,svimDirectory,pattern_svim):
 
     # Setup a new simulation
     o = PelagicPlanktonDrift(loglevel=0)  # Set loglevel to 0 for debug information
@@ -119,9 +112,12 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     #######################
     o.add_reader([reader_basemap])
        
-    reader_roms = reader_ROMS_native.Reader(romsDirectory+pattern)
-    reader_roms.interpolation = 'nearest' #linearND
-    o.add_reader(reader_roms)
+    reader_kino = reader_ROMS_native.Reader(kinoDirectory+pattern_kino)
+    reader_kino.interpolation = 'nearest' #linearND
+  #  reader_svim = reader_ROMS_native.Reader(svimDirectory+pattern_svim)
+  #  reader_svim.interpolation = 'nearest' #linearND
+    #o.add_reader([reader_kino,reader_svim])
+    o.add_reader([reader_kino])
 
     num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime,releaseParticles)
 
@@ -131,9 +127,9 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     o.config['processes']['turbulentmixing'] = True
     o.config['turbulentmixing']['diffusivitymodel'] = 'windspeed_Sundby1983'
     o.config['turbulentmixing']['timestep'] = 100 # seconds
-    o.config['turbulentmixing']['verticalresolution'] = 2 # default is 1 meter, but since we have longer timestep we justify it
+    o.config['turbulentmixing']['verticalresolution'] = 1 # default is 1 meter, but since we have longer timestep we justify it
     o.config['processes']['verticaladvection'] = True
-    o.config['turbulentmixing']['TSprofiles']=True
+    o.config['turbulentmixing']['TSprofiles'] = True
 
     #######################
     # IBM configuration   
@@ -143,6 +139,7 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     o.config['biology']['cod'] = True
     o.config['biology']['haddock'] = False
     o.config['biology']['attenuationCoefficient']=0.18
+    o.config['biology']['fractionOfTimestepSwimming']=0.25 # Pause-swim behavior
     
     #######################
     # Seed particles
@@ -159,9 +156,9 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     #########################
     # Run the model
     #########################
-    o.run(end_time=endTime, time_step=timedelta(hours=3),
-          outfile=outputFilename,
-          export_variables=['lon', 'lat', 'z','temp','length','weight','survival'])
+    o.run(end_time=endTime, time_step=timedelta(hours=1),
+          outfile=outputFilename)
+          #export_variables=['lon', 'lat', 'z','temp','length','weight','survival'])
 
     if not hexagon:
         o.plot(linecolor='z',filename=plotFilename)
@@ -173,30 +170,35 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
 
 hexagon=True
 startTime=datetime(2012,2,15,12,3,50)
-endTime=datetime(2012,5,30,3,3,50)
-startSpawningTime=datetime(2012,2,15,12,3,50)
-endSpawningTime=datetime(2012,4,15,3,3,50)
+endTime=datetime(2012,5,15,12,3,50)
+startSpawningTime=startTime
+endSpawningTime=datetime(2012,4,15,12,3,50)
 releaseParticles=100 # Per timestep multiplied by gaussian bell (so maximum is releaseParticles and minimum is close to zero)
 
 hoursBetweenTimestepInROMSFiles=3
 species=['Torsk'] #['Sei','Oyepaal','Hyse','Torsk']
 
 if not hexagon: 
-    romsDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
+    kinoDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
+    svimDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
+
     startTime=datetime(2010,8,3,19,3,50)
     endTime=datetime(2010,8,5,17,3,50)
     startSpawningTime=datetime(2010,8,3,19,3,50)
     endSpawningTime=datetime(2010,8,4,19,3,50)
 
 if hexagon:
-    romsDirectory='/work/users/trondk/KINO/FORWARD/Run/RESULTS/2012/'
+    kinoDirectory='/work/users/trondk/KINO/FORWARD/Run/RESULTS/'+str(startTime.year)+'/'
+    svimDirectory='/work/shared/imr/SVIM/'+str(startTime.year)+'/'
 
 if not hexagon:
-    pattern='kino_1600m_*[\U22859-\U22861]*.nc'
+    pattern_kino='kino_1600m_*[\U22859-\U22861]*.nc'
+    pattern_svim='kino_1600m_*[\U22859-\U22861]*.nc'
 else:
     # Year 2011 => 23011-23375
-    pattern='kino_1600m_*[\U23011-\U23375]*.nc' 
-    pattern='kino_1600m_*.nc' 
+    #pattern='kino_1600m_*[\U23011-\U23375]*.nc' 
+    pattern_kino='kino_1600m_*.nc' 
+    pattern_svim='ocean_avg_*.nc' 
 
 # Landmask (Basemap)
 reader_basemap = reader_basemap_landmask.Reader(
@@ -220,5 +222,5 @@ for specie in species:
 
             print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
 
-            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles)
+            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles,kinoDirectory,pattern_kino,svimDirectory,pattern_svim)
 
