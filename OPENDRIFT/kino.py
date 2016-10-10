@@ -114,9 +114,9 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
        
     reader_kino = reader_ROMS_native.Reader(kinoDirectory+pattern_kino)
     reader_kino.interpolation = 'nearest' #linearND
-  #  reader_svim = reader_ROMS_native.Reader(svimDirectory+pattern_svim)
-  #  reader_svim.interpolation = 'nearest' #linearND
-    #o.add_reader([reader_kino,reader_svim])
+    reader_svim = reader_ROMS_native.Reader(svimDirectory+pattern_svim)
+    reader_svim.interpolation = 'nearest' #linearND
+    o.add_reader([reader_kino,reader_svim])
     o.add_reader([reader_kino])
 
     num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime,releaseParticles)
