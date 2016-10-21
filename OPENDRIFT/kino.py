@@ -44,7 +44,7 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     print "=>SIMULATION: Drift simulation will run for %s simulation hours" %(timeStepsSimulation)
     print "=>SPAWNING: Simulated spawning will run for %s simulation hours\n initiated on %s and ending on %s"%(timeStepsSimulation,startSpawningTime,endSpawningTime)
 
-    interval = timedelta(hours=24)
+    interval = timedelta(hours=6)
     hoursPerSpawning=divmod(interval.total_seconds(), 3600) #hours per spawning event
     timeStepsSpawning=int(int(hoursOfSpawning[0])/int(hoursPerSpawning[0])) #number of spawning timesteps
     spawningTimes = [startSpawningTime + interval*n for n in range(timeStepsSpawning)] #times of spawning
@@ -102,7 +102,7 @@ def createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile):
     return outputFilename, animationFilename, plotFilename
 
    
-def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles,kinoDirectory,pattern_kino,svimDirectory,pattern_svim):
+def createAndRunSimulation(releaseDepth,endTime,layer,layerName,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles,kinoDirectory,pattern_kino,svimDirectory,pattern_svim,hexagon):
 
     # Setup a new simulation
     o = PelagicPlanktonDrift(loglevel=0)  # Set loglevel to 0 for debug information
@@ -116,20 +116,24 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     reader_kino.interpolation = 'nearest' #linearND
     reader_svim = reader_ROMS_native.Reader(svimDirectory+pattern_svim)
     reader_svim.interpolation = 'nearest' #linearND
-    o.add_reader([reader_kino,reader_svim])
-    o.add_reader([reader_kino])
+    if hexagon:
+        #o.add_reader([reader_kino,reader_svim])
+        o.add_reader([reader_kino])
+    else:
+        o.add_reader([reader_kino])
 
     num, spawningTimes = setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTime,endSpawningTime,releaseParticles)
-
+ 
     #######################
     #Adjusting configuration
     #######################
     o.config['processes']['turbulentmixing'] = True
     o.config['turbulentmixing']['diffusivitymodel'] = 'windspeed_Sundby1983'
-    o.config['turbulentmixing']['timestep'] = 100 # seconds
+    o.config['turbulentmixing']['timestep'] = 900 # seconds
     o.config['turbulentmixing']['verticalresolution'] = 1 # default is 1 meter, but since we have longer timestep we justify it
     o.config['processes']['verticaladvection'] = True
-    o.config['turbulentmixing']['TSprofiles'] = True
+    o.config['turbulentmixing']['TSprofiles'] = False
+    o.config['drift']['scheme'] = 'euler'
 
     #######################
     # IBM configuration   
@@ -139,7 +143,7 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     o.config['biology']['cod'] = True
     o.config['biology']['haddock'] = False
     o.config['biology']['attenuationCoefficient']=0.18
-    o.config['biology']['fractionOfTimestepSwimming']=0.25 # Pause-swim behavior
+    o.config['biology']['fractionOfTimestepSwimming']=0.05 # Pause-swim behavior
     
     #######################
     # Seed particles
@@ -147,8 +151,8 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     for i, nums in enumerate(num):
         if nums <= 0:
             continue
-        print "Running i=%s num=%s"%(i,nums)
-        o.seed_from_shapefile(shapefile, nums, layername='Torsk',featurenum=[polygonIndex], z=-10, time=spawningTimes[i])
+        print "Running i=%s num=%s for species=%s and polygon=%s"%(i,nums,layerName,polygonIndex)
+        o.seed_from_shapefile(shapefile, nums, layername=specie,featurenum=[polygonIndex], z=releaseDepth, time=spawningTimes[i])
 
     print "Elements scheduled for %s : %s"%(specie,o.elements_scheduled)
     #reader_basemap.plot() 
@@ -156,13 +160,9 @@ def createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFil
     #########################
     # Run the model
     #########################
-    o.run(end_time=endTime, time_step=timedelta(hours=1),
+    o.run(end_time=endTime, time_step=timedelta(hours=2),
           outfile=outputFilename)
           #export_variables=['lon', 'lat', 'z','temp','length','weight','survival'])
-
-    if not hexagon:
-        o.plot(linecolor='z',filename=plotFilename)
-        o.animation(filename=animationFilename)
 
 #########################
 # SETUP FOR KINO PROJECT
@@ -174,9 +174,10 @@ endTime=datetime(2012,5,15,12,3,50)
 startSpawningTime=startTime
 endSpawningTime=datetime(2012,4,15,12,3,50)
 releaseParticles=100 # Per timestep multiplied by gaussian bell (so maximum is releaseParticles and minimum is close to zero)
+releaseDepth=-10 # in negative meters
 
 hoursBetweenTimestepInROMSFiles=3
-species=['Torsk'] #['Sei','Oyepaal','Hyse','Torsk']
+species=['Torsk_10092016_wgs84','Hyse_13102016_wgs84','Lyr_13102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] #['Sei','Oyepaal','Hyse','Torsk']
 
 if not hexagon: 
     kinoDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
@@ -212,15 +213,28 @@ for specie in species:
         shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/'+str(specie)+'.shp'
     if hexagon:
         shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/'+str(specie)+'.shp'
-    print "Using shapefile %s"%(shapefile)
+   
+    print "=> Using shapefile %s"%(shapefile)
     s = ogr.Open(shapefile)
 
     for layer in s:
+        polygons=[x+1 for x in xrange(layer.GetFeatureCount()-1)]
         
-        for polygonIndex in [1,2,3]:
-            outputFilename, animationFilename, plotFilename = createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile)
+        for polygonIndex in polygons:
+            
+            feature = layer.GetFeature(polygonIndex-1)
+           
+            geom = feature.GetGeometryRef()
+            points = geom.GetGeometryCount()
+            ring = geom.GetGeometryRef(0)
+            if ring.GetPointCount() > 3:
+                outputFilename, animationFilename, plotFilename = createOutputFilenames(startTime,endTime,polygonIndex,specie,shapefile)
+              
+                print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
 
-            print "Result files will be stored as:\nnetCDF=> %s\nmp4=> %s"%(outputFilename,animationFilename)
-
-            createAndRunSimulation(endTime,layer,polygonIndex,shapefile,specie,outputFilename,animationFilename,plotFilename,releaseParticles,kinoDirectory,pattern_kino,svimDirectory,pattern_svim)
+                createAndRunSimulation(releaseDepth,endTime,
+                    layer,specie,polygonIndex,shapefile,
+                    specie,outputFilename,
+                    animationFilename,plotFilename,releaseParticles,kinoDirectory,
+                    pattern_kino,svimDirectory,pattern_svim,hexagon)
 
