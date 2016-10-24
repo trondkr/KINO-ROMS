@@ -102,7 +102,7 @@ class PelagicPlankton(Lagrangian3DArray):
         for ind in xrange(len(self.elements.lat)):
         
           sunHeight, surfaceLight = calclight.calclight.surlig(hourOfDay,float(maxLight[ind]),dayOfYear,float(self.elements.lat[ind]),sunHeight,surfaceLight)
-          self.elements.light[ind]=surfaceLight          
+          self.elements.light[ind]=surfaceLight
 
     def updateSurvival(self):
         # Update the size dependent mortality
@@ -110,7 +110,7 @@ class PelagicPlankton(Lagrangian3DArray):
         bPred = -1.3 
         mortality = aPred*(self.elements.length**bPred)*(self.time_step.total_seconds()/3600.)
         self.elements.survival = self.elements.survival*(np.exp(-mortality))
-       
+
     def updateEggDevelopment(self):
         # Update percentage of egg stage completed
         amb_duration = np.exp(3.65 - 0.145*self.environment.sea_water_temperature) #Total egg development time (days) according to ambient temperature (Ellertsen et al. 1988)
@@ -119,16 +119,17 @@ class PelagicPlankton(Lagrangian3DArray):
         self.elements.stage_fraction += amb_fraction #Add fraction completed during present timestep to cumulative fraction completed
         self.elements.hatched[self.elements.stage_fraction>=1] = 1 #Eggs with total development time completed are hatched (1)
 
-    def updateVertialPosition(self,length,oldLight,currentLight,currentDepth,dt):
+    def updateVertialPosition(self,length,oldLight,currentLight,currentDepth,stomach_fullness,dt):
         # Update the vertical position of the current larva
         swimSpeed=0.261*(length**(1.552*length**(0.920-1.0)))-(5.289/length)
-        fractionOfTimestepSwimming=0.25 # guessed value
-        maxHourlyMove=swimSpeed*fractionOfTimestepSwimming*dt
+        fractionOfTimestepSwimming = self.config['biology']['fractionOfTimestepSwimming']
+        maxHourlyMove = swimSpeed*fractionOfTimestepSwimming*dt
         maxHourlyMove =  round(maxHourlyMove/1000.,1) # depth values are negative
-       
-        if (oldLight <= currentLight):
+        lowerStomachLim = self.config['biology']['lowerStomachLim']
+
+        if (oldLight <= currentLight and stomach_fullness >= lowerStomachLim): #If light increases and stomach is sufficiently full, go down
           depth = min(0.0,currentDepth - maxHourlyMove)
-        else:
+        else: #If light decreases or stomach is not sufficiently full, go up
           depth = min(0,currentDepth + maxHourlyMove)
         #print "current depth %s new depth %s light %s lastLight %s"%(currentDepth,depth,currentLight,oldLight)
         #print "maximum mm to move %s new depth %s old depth %s"%(maxHourlyMove,depth,currentDepth)
@@ -183,6 +184,7 @@ class PelagicPlankton(Lagrangian3DArray):
               lastLight[ind],
               self.elements.light[ind],
               self.elements.z[ind],
+              self.elements.stomach_fullness[ind],
               dt)
          
 
