@@ -12,6 +12,10 @@ import datetime
 from pprint import pprint
 from netCDF4 import Dataset, datetime, date2num,num2date
 from scipy.ndimage.filters import gaussian_filter
+import ogr
+import osr
+import matplotlib
+matplotlib.use('Agg')
 
 __author__   = 'Trond Kristiansen'
 __email__    = 'me (at) trondkristiansen.com'
@@ -30,13 +34,12 @@ __status__   = "Production"
 # is a heatmap of where the most particles reside for each time period.
 # --------
 
-def createBins():
+def createBins(requiredResolution):
 
 	print 'func: createBins() => Creating bins for averaging'
 	xmin=-4.0; xmax=13.0
 	ymin=50.0; ymax=66.0
-	requiredResolution = 10 # km between each binned box
-
+	
 	deg2rad=np.pi/180.
 	R = 6371  # radius of the earth in km
 	# Distance from minimum to maximim longitude
@@ -59,11 +62,11 @@ def createBins():
 	xi = np.linspace(np.floor(xmin),np.ceil(xmax),ngridx)
 	yi = np.linspace(np.floor(ymin),np.ceil(ymax),ngridy)
 
-	print '=> created binned array of domain of size (%s,%s) with resolution %s\n'%(ngridx,ngridy,requiredResolution)
+	print '=> created binned array of domain of size (%s,%s) with resolution %s'%(ngridx,ngridy,requiredResolution)
 
 	return xi,yi
 
-def calculateAreaAverages(xi,yi,cdf,first):
+def calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution):
 
 	print 'func: calculateAreaAverages() => Calculating averages within bins'
 	print '=> binned domain (%2.1f,%2.1f) to (%2.1f,%2.1f)'%(np.min(xi),np.min(yi),np.max(xi),np.max(yi))
@@ -72,21 +75,26 @@ def calculateAreaAverages(xi,yi,cdf,first):
  	timeunits = cdf.variables["time"].units
 
 	print '=> found %s timesteps in input file'%(len(timesteps))
+	newMonth=-9
 
 	for tindex, t in enumerate(timesteps): 
 
  		currentDate = num2date(t, units=timeunits, calendar="gregorian")
 		Xpos = cdf.variables['lon'][:,tindex]
 		Ypos = cdf.variables['lat'][:,tindex]
-			
-		H, xedges, yedges = np.histogram2d(Xpos, Ypos, bins=(xi, yi), normed=False)
+
+		if survivalDefinedDistribution:
+			survival=cdf.variables['survival'][:,tindex]
+			H, xedges, yedges = np.histogram2d(Xpos, Ypos, weights=survival, bins=(xi, yi), normed=False)
+		else:
+			H, xedges, yedges = np.histogram2d(Xpos, Ypos, bins=(xi, yi), normed=False)
 
 		if (tindex==0 and first is True):
 			monthlyFrequency=np.zeros((12,np.shape(H)[0],np.shape(H)[1]), dtype=float32)
-			print np.shape(monthlyFrequency)
 			
-	#	if currentDate.month==2:
-		print "=> Adding data to month: %s (%s)"%(currentDate.month,currentDate)
+		if currentDate.month != newMonth:
+			print "=> Adding data to month: %s (startdate: %s)"%(currentDate.month,currentDate)
+			newMonth=currentDate.month
 		monthlyFrequency[currentDate.month,:,:]=monthlyFrequency[currentDate.month,:,:] + H
 
 	# Create log values and levels for frequencyplot
@@ -94,50 +102,121 @@ def calculateAreaAverages(xi,yi,cdf,first):
 	levels = np.arange(monthlyFrequency.min(),monthlyFrequency.max(),(monthlyFrequency.max()- monthlyFrequency.min())/10)
 		
 	sigma = 0.2 # this depends on how noisy your data is, play with it!
+	first=False
 
-	filtereddata = gaussian_filter(monthlyFrequency, sigma)
+	return gaussian_filter(monthlyFrequency, sigma), first
 
-	# Create one plot per month
-	for month in [1,2,3,4]:
+def plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution):
 	
-		plt.clf()
-		plt.figure(figsize=(10,10), frameon=False)
+	plt.clf()
+	plt.figure(figsize=(10,10), frameon=False)
 
-		mymap = Basemap(llcrnrlon=-3.0,
+	mymap = Basemap(llcrnrlon=-3.0,
 	                  llcrnrlat=53.0,
 	                  urcrnrlon=13.5,
 	                  urcrnrlat=63.0,
 	                  resolution='i',projection='tmerc',lon_0=5,lat_0=10,area_thresh=50.)
 
-		xii,yii=np.meshgrid(xi[:-1],yi[:-1])
-		x, y = mymap(xii,yii)
+	
+	x, y = mymap(xii,yii)
 		
-		CS1 = mymap.contourf(x,y,np.fliplr(np.rot90(np.squeeze(filtereddata[month,:,:]),3)),levels,cmap=cm.get_cmap('Spectral_r',len(levels)-1), extend='both',alpha=1.0)
-		plt.colorbar(CS1,orientation='vertical',extend='both', shrink=0.5)
+	levels=np.arange(np.min(speciesData),np.max(speciesData),0.5)
 
-		mymap.drawcoastlines()
-		mymap.fillcontinents(color='grey',zorder=2)
-		mymap.drawcountries()
-		mymap.drawmapboundary()
-		plt.title('Month %s'%(month))
-		plotfile='/Users/trondkr/Projects/KINO/opendrift/frequencyFigures/frequency_'+str(month)+'.png'
-		print "=> Creating plot %s"%(plotfile)
+	CS1 = mymap.contourf(x,y,np.fliplr(np.rot90(speciesData,3)),levels,cmap=cm.get_cmap('Spectral_r',len(levels)-1), extend='both',alpha=1.0)
+	plt.colorbar(CS1,orientation='vertical',extend='both', shrink=0.5)
+
+	mymap.drawcoastlines()
+	mymap.fillcontinents(color='grey',zorder=2)
+	mymap.drawcountries()
+	mymap.drawmapboundary()
+	plt.title('Species: %s month: %s'%(specie,month))
+	if survivalDefinedDistribution:
+		plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'_survivalDefinedDistribution.png'
+	else:
+		plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'.png'
+	print "=> Creating plot %s"%(plotfile)
 		#plt.show()
-		plt.savefig(plotfile,dpi=300)
+	plt.savefig(plotfile,dpi=300)
+
 
 def main():
 
-	first=True
-	infile='results/Torsk_polygon_1_kino_opendrift_15022012_to_30052012.nc'
+	# EDIT --------------------------------------
+	# Which species to calculate for
+	species=['Torsk_10092016_wgs84']
+	#species=['Torsk_10092016_wgs84','Hyse_13102016_wgs84','Lyr_13102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] #['Sei','Oyepaal','Hyse','Torsk']
 
-	xi,yi = createBins()
+	# The timespan part of the filename
+	timespan='15022012_to_15052012'
+	#timespan='15022012_to_15042012'
 
-	if os.path.exists(infile):
-		cdf = Dataset(infile)
-		first = calculateAreaAverages(xi,yi,cdf,first)
+	# Results and storage folders
+	base='results'
+	baseout='distributionFigures'
 
-	else:
-		print "Input file %s could not be opened"%(infile)
+	# What months you want to calculate distributions for 
+	months=[2,3,4,5]
+	
+	# The resolution of the output grid in kilometers
+	requiredResolution = 10 # km between each binned box
+
+	# Modify distributions using survival rates
+	survivalDefinedDistribution=True
+
+	# END EDIT ----------------------------------
+
+	# Create the grid you want to calculate frequency on
+	xi,yi = createBins(requiredResolution)
+	monthsInYear=12
+	xii,yii=np.meshgrid(xi[:-1],yi[:-1])
+	firstRead=True
+	hexagon=True
+
+	for speciesIndex,specie in enumerate(species):
+		shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/'+str(specie)+'.shp'
+		if hexagon:
+   			shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/'+str(specie)+'.shp'
+
+    	print "=> Using shapefile %s"%(shapefile)
+    	s = ogr.Open(shapefile)
+    	for layer in s:
+        	polygons=[x+1 for x in xrange(layer.GetFeatureCount()-1)]
+        if firstRead:
+        	allData=np.zeros((len(species),len(polygons),monthsInYear,len(xi)-1,len(yi)-1))
+        	print "=> Created final array for all data of size :",np.shape(allData)
+        	firstRead=False
+
+		for polygonIndex,polygon in enumerate(polygons):
+			first=True
+			feature = layer.GetFeature(polygonIndex)
+			geom = feature.GetGeometryRef()
+			points = geom.GetGeometryCount()
+			ring = geom.GetGeometryRef(0)
+			if ring.GetPointCount() > 3:
+				infile=base+'/'+str(specie)+'_polygon_'+str(polygon)+'_kino_opendrift_'+str(timespan)+'.nc'
+				print "=> Opening input file: %s"%(os.path.basename(infile))
+
+				if os.path.exists(infile):
+					cdf = Dataset(infile)
+					filteredData, first = calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution)
+					allData[speciesIndex,polygonIndex,:,:,:]=filteredData
+				else:
+					print "==>> Input file %s could not be opened"%(infile)
+
+	for speciesIndex,specie in enumerate(species):
+		print "Creating figures for species: %s"%(specie)
+		for month in months:
+
+			# Calculate the cumulative distribution for each month and species
+			first=True
+			for polygonIndex,polygon in enumerate([x+1 for x in xrange(len(polygons))]):
+				if first:
+					speciesData=np.zeros((len(xi)-1,len(yi)-1))
+					first=False
+				speciesData=speciesData + np.squeeze(allData[speciesIndex,polygonIndex,month,:,:])
+			print "==> Created array of data for month: ",month," with size: ",np.shape(speciesData)
+
+			plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution)
 
 if __name__ == "__main__":
 	main()
