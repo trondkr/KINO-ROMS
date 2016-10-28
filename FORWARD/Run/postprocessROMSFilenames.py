@@ -51,7 +51,7 @@ def main():
 	# Where the ROMS results files are stored
 	datapath ="/work/users/trondk/KINO/FORWARD/Run/SAVE/"
 	# The pattern of the ROMS files
-	mypattern="ocean_avg_*.nc"
+	mypattern="ocean_avg_0*[01234]*.nc"
 	# The directory to store the renamed files
 	outputDirectory="/work/users/trondk/KINO/FORWARD/Run/RESULTS/"
 	# The new filename pattern where days since 1948/1/1 will be added at the end: kino_1600m_29765.nc

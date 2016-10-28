@@ -79,7 +79,7 @@ end
 # determine the name of the ".h" header file with the application
 # CPP definitions.
 
-setenv ROMS_APPLICATION  KINO
+setenv ROMS_APPLICATION  KINO1600M
 
 # Set a local environmental variable to define the path to the directories
 # where all this project's files are kept.
@@ -99,7 +99,7 @@ echo "Compiling ",$ROMS_APPLICATION
 # to the code and inputs on differing machines.
 
 #
-setenv MY_ROMS_SRC          ${MY_ROOT_DIR}/src/Kate_ROMS_v35
+setenv MY_ROMS_SRC          ${MY_ROOT_DIR}/src/Kate
 
 # Set tunable CPP options.
 #
@@ -123,7 +123,7 @@ setenv MY_ROMS_SRC          ${MY_ROOT_DIR}/src/Kate_ROMS_v35
 
 #setenv USE_OpenMP          on
 
-# setenv USE_DEBUG           on
+ setenv USE_DEBUG           
  setenv USE_LARGE           on
  setenv USE_NETCDF4         on
 
