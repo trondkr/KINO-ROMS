@@ -7,6 +7,9 @@ import string
 from matplotlib.pyplot import cm 
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
+import matplotlib.path as mpath
+import matplotlib.patches as mpatches
+from matplotlib.collections import PatchCollection
 from pylab import *
 import datetime
 from pprint import pprint
@@ -73,7 +76,7 @@ def calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution):
 
 	timesteps = cdf.variables['time'][:]
  	timeunits = cdf.variables["time"].units
-
+	
 	print '=> found %s timesteps in input file'%(len(timesteps))
 	newMonth=-9
 
@@ -96,7 +99,7 @@ def calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution):
 			print "=> Adding data to month: %s (startdate: %s)"%(currentDate.month,currentDate)
 			newMonth=currentDate.month
 		monthlyFrequency[currentDate.month,:,:]=monthlyFrequency[currentDate.month,:,:] + H
-
+		
 	# Create log values and levels for frequencyplot
 	monthlyFrequency=ma.log(monthlyFrequency)
 	levels = np.arange(monthlyFrequency.min(),monthlyFrequency.max(),(monthlyFrequency.max()- monthlyFrequency.min())/10)
@@ -106,10 +109,11 @@ def calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution):
 
 	return gaussian_filter(monthlyFrequency, sigma), first
 
-def plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution):
-	
+def plotDistribution(shapefile,speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution):
+	print "Plotting the distributions for month: %s"%(month)
 	plt.clf()
 	plt.figure(figsize=(10,10), frameon=False)
+        ax = plt.subplot(111)
 
 	mymap = Basemap(llcrnrlon=-3.0,
 	                  llcrnrlat=53.0,
@@ -121,7 +125,7 @@ def plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDis
 	x, y = mymap(xii,yii)
 		
 	levels=np.arange(np.min(speciesData),np.max(speciesData),0.5)
-
+                              
 	CS1 = mymap.contourf(x,y,np.fliplr(np.rot90(speciesData,3)),levels,cmap=cm.get_cmap('Spectral_r',len(levels)-1), extend='both',alpha=1.0)
 	plt.colorbar(CS1,orientation='vertical',extend='both', shrink=0.5)
 
@@ -129,22 +133,69 @@ def plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDis
 	mymap.fillcontinents(color='grey',zorder=2)
 	mymap.drawcountries()
 	mymap.drawmapboundary()
+
 	plt.title('Species: %s month: %s'%(specie,month))
 	if survivalDefinedDistribution:
 		plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'_survivalDefinedDistribution.png'
 	else:
 		plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'.png'
 	print "=> Creating plot %s"%(plotfile)
-		#plt.show()
 	plt.savefig(plotfile,dpi=300)
 
+        print "Adding polygons to plot"
+
+        mypatches=createPathsForPolygons(shapefile,mymap)
+        p = PatchCollection(mypatches,alpha=1.0,facecolor='none',lw=1.0,edgecolor='purple',zorder=2)
+        ax.add_collection(p)
+        plt.title('Species: %s month: %s'%(specie,month))
+
+        if survivalDefinedDistribution:
+                plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'_spawningground__survivalDefinedDistribution.png'
+        else:
+                plotfile=baseout+'/'+str(specie)+'_distribution_'+str(month)+'_spawningground.png'
+                print "=> Creating plot %s"%(plotfile)
+                 
+        plt.savefig(plotfile,dpi=300)
+                                                                
+
+def getPathForPolygon(ring,mymap):
+	codes=[]
+	x = [ring.GetX(j) for j in range(ring.GetPointCount())]
+	y = [ring.GetY(j) for j in range(ring.GetPointCount())]
+        codes += [mpath.Path.MOVETO] + (len(x)-1)*[mpath.Path.LINETO]
+    
+	pathX,pathY=mymap(x,y)
+        mymappath = mpath.Path(np.column_stack((pathX,pathY)), codes)
+
+	return mymappath
+   
+def createPathsForPolygons(shapefile,mymap):
+
+	mypatches=[]
+	s = ogr.Open(shapefile)
+        for layer in s:
+
+                polygons=[x+1 for x in xrange(layer.GetFeatureCount()-1)]
+                for polygonIndex,polygon in enumerate(polygons):
+                        feature = layer.GetFeature(polygonIndex)
+                        geom = feature.GetGeometryRef()
+                        points = geom.GetGeometryCount()
+                        ring = geom.GetGeometryRef(0)
+                        
+			if ring.GetPointCount() > 3:
+				polygonPath = getPathForPolygon(ring,mymap)
+                                path_patch = mpatches.PathPatch(polygonPath, lw=2, edgecolor="purple",facecolor='none')
+                                
+                                mypatches.append(path_patch)
+        return mypatches
 
 def main():
 
 	# EDIT --------------------------------------
 	# Which species to calculate for
-	species=['Torsk_10092016_wgs84']
-	#species=['Torsk_10092016_wgs84','Hyse_13102016_wgs84','Lyr_13102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] #['Sei','Oyepaal','Hyse','Torsk']
+	species=['Sei_31102016_wgs84','Hyse_31102016_wgs84','Oyepaal_31102016_wgs84']
+	#species=['Lyr_28102016_wgs84','Hyse_13102016_wgs84']
+	#species=['Torsk_28102016_wgs84','Hyse_13102016_wgs84','Lyr_28102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] 
 
 	# The timespan part of the filename
 	timespan='15022012_to_15052012'
@@ -156,7 +207,7 @@ def main():
 
 	# What months you want to calculate distributions for 
 	months=[2,3,4,5]
-	
+      
 	# The resolution of the output grid in kilometers
 	requiredResolution = 10 # km between each binned box
 
@@ -170,24 +221,27 @@ def main():
 	monthsInYear=12
 	xii,yii=np.meshgrid(xi[:-1],yi[:-1])
 	firstRead=True
-	hexagon=True
+	hexagon=False
+	maxNumberOfPolygons=14
 
 	for speciesIndex,specie in enumerate(species):
+		
 		shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/'+str(specie)+'.shp'
 		if hexagon:
    			shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/'+str(specie)+'.shp'
 
-    	print "=> Using shapefile %s"%(shapefile)
-    	s = ogr.Open(shapefile)
-    	for layer in s:
-        	polygons=[x+1 for x in xrange(layer.GetFeatureCount()-1)]
-        if firstRead:
-        	allData=np.zeros((len(species),len(polygons),monthsInYear,len(xi)-1,len(yi)-1))
-        	print "=> Created final array for all data of size :",np.shape(allData)
-        	firstRead=False
+                print "=> Using shapefile %s"%(shapefile)
+                s = ogr.Open(shapefile)
+                for layer in s:
+                        polygons=[x+1 for x in xrange(layer.GetFeatureCount()-1)]
+                if firstRead:
+                        allData=np.zeros((len(species),maxNumberOfPolygons,monthsInYear,len(xi)-1,len(yi)-1))
+                        print "=> Created final array for all data of size :",np.shape(allData)
+                        firstRead=False
 
 		for polygonIndex,polygon in enumerate(polygons):
 			first=True
+			
 			feature = layer.GetFeature(polygonIndex)
 			geom = feature.GetGeometryRef()
 			points = geom.GetGeometryCount()
@@ -199,24 +253,31 @@ def main():
 				if os.path.exists(infile):
 					cdf = Dataset(infile)
 					filteredData, first = calculateAreaAverages(xi,yi,cdf,first,survivalDefinedDistribution)
+					print np.shape(filteredData), polygonIndex,speciesIndex,np.shape(allData)
 					allData[speciesIndex,polygonIndex,:,:,:]=filteredData
 				else:
 					print "==>> Input file %s could not be opened"%(infile)
 
 	for speciesIndex,specie in enumerate(species):
-		print "Creating figures for species: %s"%(specie)
+
+		shapefile='/Users/trondkr/Projects/KINO/shapefile_spawning_areas/'+str(specie)+'.shp'
+		if hexagon:
+                        shapefile='/work/shared/imr/KINO/OPENDRIFT/shapefile_spawning_areas/'+str(specie)+'.shp'
+   		print "Creating figures for species: %s"%(specie)
+	
 		for month in months:
+                        # Calculate the cumulative distribution for each month and species
+                        first=True
+                        for polygonIndex,polygon in enumerate([x+1 for x in xrange(len(polygons))]):
+                                if first:
+                                        speciesData=np.zeros((len(xi)-1,len(yi)-1))
+                                        first=False
+                                        print "==> Created array of data for month: ",month," with size: ",np.shape(speciesData)
 
-			# Calculate the cumulative distribution for each month and species
-			first=True
-			for polygonIndex,polygon in enumerate([x+1 for x in xrange(len(polygons))]):
-				if first:
-					speciesData=np.zeros((len(xi)-1,len(yi)-1))
-					first=False
-				speciesData=speciesData + np.squeeze(allData[speciesIndex,polygonIndex,month,:,:])
-			print "==> Created array of data for month: ",month," with size: ",np.shape(speciesData)
-
-			plotDistribution(speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution)
+                                speciesData=speciesData + np.squeeze(allData[speciesIndex,polygonIndex,month,:,:])
+			levels=np.arange(np.min(speciesData),np.max(speciesData),0.5)
+			if len(levels)>2:
+				plotDistribution(shapefile,speciesData,month,specie,baseout,xii,yii,survivalDefinedDistribution)
 
 if __name__ == "__main__":
 	main()

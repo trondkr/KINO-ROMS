@@ -56,10 +56,10 @@ def setupSeed(hoursBetweenTimestepInROMSFiles,startTime,endTime,startSpawningTim
     prng = RandomState()
     scale = prng.randint(1, 5, size=1)
 
-    s = np.random.normal(mu, sigma, len(spawningTimes))
-    num=(scale*s*releaseParticles).astype(int)
-    print num
-    num=np.sort(num) #sort particles in increasing order 
+    prng = RandomState()
+    s = prng.normal(mu, sigma, len(spawningTimes))
+    num=(s*releaseParticles).astype(int)
+    num=np.sort(num) #sort particles in increasing order
     num=np.concatenate((num[len(num)%2::2],num[::-2]),axis=0) #release the highest number of particles at the midpoint of the spawning period
 
     print "SPAWNING: Simulated spawning will release %s eggs"%(np.sum(num))
@@ -161,7 +161,6 @@ def createAndRunSimulation(lowDepth,highDepth,endTime,layer,layerName,polygonInd
         if nums <= 0:
             continue
         print "Running i=%s num=%s for species=%s and polygon=%s"%(i,nums,layerName,polygonIndex)
-        print "Depths ",prng.randint(lowDepth, highDepth, nums)
         o.seed_from_shapefile(shapefile, nums, layername=specie,featurenum=[polygonIndex], z=prng.randint(lowDepth, highDepth, nums), time=spawningTimes[i])
 
     print "Elements scheduled for %s : %s"%(specie,o.elements_scheduled)
@@ -187,8 +186,9 @@ releaseParticles=50 # Per timestep multiplied by gaussian bell (so maximum is re
 lowDepth, highDepth = -20, 0 # in negative meters
 
 hoursBetweenTimestepInROMSFiles=3
-species=['Torsk_10092016_wgs84','Hyse_13102016_wgs84','Lyr_13102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] #['Sei','Oyepaal','Hyse','Torsk']
-
+species=['Torsk_28102016_wgs84','Hyse_13102016_wgs84','Lyr_28102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] 
+species=['Sei_31102016_wgs84','Hyse_31102016_wgs84','Oyepaal_31102016_wgs84']
+    
 if not hexagon: 
     kinoDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
     svimDirectory='/Users/trondkr/Projects/KINO/RESULTS/'
