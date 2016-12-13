@@ -20,7 +20,8 @@ o = PelagicPlanktonDrift(loglevel=0)  # Set loglevel to 0 for debug information
 #######################
 # Preparing readers
 #######################
-species=['Torsk_28102016_wgs84','Hyse_13102016_wgs84','Lyr_28102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] 
+species=['Torsk_28102016_wgs84','Hyse_03112016_wgs84','Lyr_28102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] 
+species=['Sei_31102016_wgs84','Hyse_03112016_wgs84','Oyepaal_31102016_wgs84']
 base='results'
 baseout='figures'
 hexagon=False

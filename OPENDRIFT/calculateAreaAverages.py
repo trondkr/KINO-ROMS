@@ -193,7 +193,7 @@ def main():
 
 	# EDIT --------------------------------------
 	# Which species to calculate for
-	species=['Sei_31102016_wgs84','Hyse_31102016_wgs84','Oyepaal_31102016_wgs84']
+	species=['Hyse_03112016_wgs84']
 	#species=['Lyr_28102016_wgs84','Hyse_13102016_wgs84']
 	#species=['Torsk_28102016_wgs84','Hyse_13102016_wgs84','Lyr_28102016_wgs84','Oyepaal_13102016_wgs84','Sei_13102016_wgs84','Whiting_13102016_wgs84'] 
 
